@@ -1,0 +1,130 @@
+# Mi-Respositorio-Pvp
+------------------------------------------------
+  Aquí se encuentra las consultas
+------------------------------------------------
+
+-- 1.Tabla de Freestylers con más puntos --
+
+select f.AKA, sum(case
+	when b.ID_Freestyler1 = f.ID_Freestyler then b.puntosfreestyler1
+   when b.ID_Freestyler2 = f.ID_Freestyler then b.puntosfreestyler2
+					end) as PuntosTotales
+from batalla b
+join freestyler f on b.ID_Freestyler1 = f.ID_Freestyler or b.ID_Freestyler2 = f.ID_Freestyler
+group by f.AKA
+having sum(case
+	when b.ID_Freestyler1 = f.ID_Freestyler then b.puntosfreestyler1
+	when b.ID_Freestyler2 = f.ID_Freestyler then b.puntosfreestyler2
+          	end) >=0
+order by PuntosTotales desc;
+
+-- 2. Juez con el freestyler al que más ha votado y cuantos puntos les ha otorgado --
+
+with VotosPorJuez as (
+    select j.ID_Juez, j.Nombre_Real as NombreJuez, f.AKA as Freestyler,
+        count(distinct pjb.ID_Batalla) as BatallasVotadas,
+        sum(pjb.PTB) as PuntosOtorgados
+    from juez j
+    join puntaje_juez_batalla pjb on j.ID_Juez = pjb.ID_Juez
+    join freestyler f on pjb.ID_Freestyler = f.ID_Freestyler
+    join batalla b on pjb.ID_Batalla = b.ID_Batalla
+    where (b.ID_Freestyler1 = f.ID_Freestyler and pjb.PTB > 
+        (select pjb2.PTB from puntaje_juez_batalla pjb2 
+         where pjb2.ID_Batalla = pjb.ID_Batalla 
+         and pjb2.ID_Juez = pjb.ID_Juez 
+         and pjb2.ID_Freestyler = b.ID_Freestyler2)
+         )
+        or (b.ID_Freestyler2 = f.ID_Freestyler and pjb.PTB > 
+         (select pjb2.PTB from puntaje_juez_batalla pjb2 
+          where pjb2.ID_Batalla = pjb.ID_Batalla 
+          and pjb2.ID_Juez = pjb.ID_Juez 
+          and pjb2.ID_Freestyler = b.ID_Freestyler1)
+          )
+    group by j.ID_Juez, j.Nombre_Real, f.ID_Freestyler, f.AKA
+    )
+	select v1.NombreJuez, v1.Freestyler, v1.BatallasVotadas, v1.PuntosOtorgados
+	from VotosPorJuez v1
+	where v1.BatallasVotadas = (
+    select MAX(v2.BatallasVotadas)
+    from VotosPorJuez v2
+    where v1.ID_Juez = v2.ID_Juez)
+	and v1.PuntosOtorgados = (
+    select MAX(v2.PuntosOtorgados)
+    from VotosPorJuez v2
+    where v1.ID_Juez = v2.ID_Juez
+    and v1.BatallasVotadas = v2.BatallasVotadas
+)
+order by v1.PuntosOtorgados desc;
+
+
+-- 3.freestylers han recibido las puntuaciones más altas promedio por juez en batallas de la temporada 1, junto con el DJ y el speaker involucrados. --
+
+SELECT
+   f.AKA as Freestyler,
+   avg(case
+       when pjb.ID_Freestyler = f.ID_Freestyler then pjb.PTB
+       end) as PuntuacionPromedio,
+   count(distinct b.ID_Batalla) as BatallasParticipadas,
+   group_concat(distinct j.Nombre_Real) as JuecesQuePuntuaron,
+   group_concat(distinct dj.Nombre_Real) as DjsQueEstuvieron,
+   group_concat(distinct s.Nombre_Real) as SpeakersQueEstuvieron
+from freestyler f
+join batalla b
+   on f.ID_Freestyler = b.ID_Freestyler1
+   or f.ID_Freestyler = b.ID_Freestyler2
+join puntaje_juez_batalla pjb
+   on b.ID_Batalla = pjb.ID_Batalla
+   and pjb.ID_Freestyler = f.ID_Freestyler
+join juez j
+   on pjb.ID_Juez = j.ID_Juez
+join dj
+   on b.ID_DJ = dj.ID_DJ
+join speaker s
+   on b.ID_Speaker = s.ID_Speaker
+where b.Temporada = 1
+group by f.ID_Freestyler, f.AKA
+having PuntuacionPromedio > 0
+order by PuntuacionPromedio desc;
+
+-- 4. Batallas que ha habido en un fehca con datos de esa batalla como los ganadores y el juez que mas puntuacion ha otorgado --
+
+select b.ID_Batalla, b.Fecha, case
+       when b.puntosfreestyler1 > b.puntosfreestyler2 then b.ID_Freestyler1
+       when b.puntosfreestyler2 > b.puntosfreestyler1 then b.ID_Freestyler2
+       else null
+   end as ID_FreestylerGanador,
+   (select pjb2.ID_Juez
+    from puntaje_juez_batalla pjb2
+    where pjb2.ID_Batalla = b.ID_Batalla
+    and pjb2.ID_Freestyler = case
+         when b.puntosfreestyler1 > b.puntosfreestyler2 then b.ID_Freestyler1
+         when b.puntosfreestyler2 > b.puntosfreestyler1 then b.ID_Freestyler2
+         else null
+         end
+    order by pjb2.PTB desc
+    limit 1) as ID_JuezMasGeneroso,
+   (select pjb2.PTB
+    from puntaje_juez_batalla pjb2
+    where pjb2.ID_Batalla = b.ID_Batalla
+    and pjb2.ID_Freestyler = case
+          when b.puntosfreestyler1 > b.puntosfreestyler2 then b.ID_Freestyler1
+          when b.puntosfreestyler2 > b.puntosfreestyler1 then b.ID_Freestyler2
+          else null
+          end
+    order by pjb2.PTB desc
+    limit 1) as PTBMaximo
+from batalla b
+where b.Fecha = '2025-04-20'
+order by b.ID_Batalla asc;
+
+-- Cuantos integrantes hay de cada pais en la liga (DJs, Jurados, Speaker, Freestylers) --
+
+select Nacionalidad, 
+       (select count(*) from dj where dj.Nacionalidad = f.Nacionalidad) +
+       (select count(*) from speaker where speaker.Nacionalidad = f.Nacionalidad) +
+       (select count(*) from freestyler where freestyler.Nacionalidad = f.Nacionalidad) +
+       (select count(*) from juez where juez.Nacionalidad = f.Nacionalidad) 
+       as TotalPersonas
+from freestyler f
+group by Nacionalidad
+order by TotalPersonas desc
