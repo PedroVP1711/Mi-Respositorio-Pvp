@@ -1,6 +1,6 @@
 # Mi-Respositorio-Pvp
 ------------------------------------------------
-  Aquí se encuentra las consultas
+  Aquí se encuentra las consultas y las vistas
 ------------------------------------------------
 
 -- 1.Tabla de Freestylers con más puntos --
@@ -128,3 +128,78 @@ select Nacionalidad,
 from freestyler f
 group by Nacionalidad
 order by TotalPersonas desc
+
+
+
+
+-- VISTAS --
+
+-- 1. Vista para ver la tabla de FMS --
+
+create view tabla_fms AS
+select
+   f.AKA,
+   SUM(case
+       when b.ID_Freestyler1 = f.ID_Freestyler THEN b.puntosfreestyler1
+       when b.ID_Freestyler2 = f.ID_Freestyler THEN b.puntosfreestyler2
+       end) as PuntosTotales
+from
+   batalla b
+join
+   freestyler f
+   on b.ID_Freestyler1 = f.ID_Freestyler
+   OR b.ID_Freestyler2 = f.ID_Freestyler
+group by
+   f.AKA
+HAVING
+   SUM(case
+       when b.ID_Freestyler1 = f.ID_Freestyler THEN b.puntosfreestyler1
+       when b.ID_Freestyler2 = f.ID_Freestyler THEN b.puntosfreestyler2
+       end) >= 0
+order by
+   PuntosTotales DESC;
+
+	-- Para verla --
+
+select * from tabla_fms;
+
+
+-- 2.Batallas con datos de esa batalla como los ganadores y el juez que mas puntuacion ha otorgado  --
+
+create view BatallasPorDia AS
+select
+   b.ID_Batalla,
+   b.Fecha,
+   case
+       when b.puntosfreestyler1 > b.puntosfreestyler2 THEN b.ID_Freestyler1
+       when b.puntosfreestyler2 > b.puntosfreestyler1 THEN b.ID_Freestyler2
+       else null
+   end as ID_FreestylerGanador,
+   (select pjb2.ID_Juez
+    from puntaje_juez_batalla pjb2
+    where pjb2.ID_Batalla = b.ID_Batalla
+    and pjb2.ID_Freestyler = case
+                                when b.puntosfreestyler1 > b.puntosfreestyler2 then b.ID_Freestyler1
+                                when b.puntosfreestyler2 > b.puntosfreestyler1 then b.ID_Freestyler2
+                                else null
+                            end
+    ORDER by pjb2.PTB desc
+    LIMIT 1) A ID_JuezMasGeneroso,
+   (select pjb2.PTB
+    from puntaje_juez_batalla pjb2
+    where pjb2.ID_Batalla = b.ID_Batalla
+    and pjb2.ID_Freestyler = case
+                                when b.puntosfreestyler1 > b.puntosfreestyler2 then b.ID_Freestyler1
+                                when b.puntosfreestyler2 > b.puntosfreestyler1 then b.ID_Freestyler2
+                                else null
+                            end
+    order by pjb2.PTB desc
+    limit 1) as PTBMaximo
+from
+   batalla b
+order by
+   b.Fecha asc, b.ID_Batalla asc;
+
+	-- Para verla --
+
+select * from BatallasPorDia;
