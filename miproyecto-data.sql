@@ -1,6 +1,3 @@
-# Mi-Respositorio-Pvp
-------------------------------------------------
-  Aquí se encuentra mi Dump del proyecto
 ------------------------------------------------
 -- MySQL dump 10.13  Distrib 8.0.19, for Win64 (x86_64)
 --
